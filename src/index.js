@@ -29,7 +29,8 @@ SMSru.prototype = {
 		if(options.test)params.test = 1;
 		if(options.partner_id)params['partner_id'] = options.partner_id;
 
-		this.get('sms/send', params, callback, ['ids']);
+		if(options.requestType=='post') this.post('sms/send', params, callback, ['ids']);
+		else this.get('sms/send', params, callback, ['ids']);
 	},
 
 	sms_status: function(id, callback){
@@ -100,6 +101,46 @@ SMSru.prototype = {
 		  callback(null, e.message);
 		});
 	},
+	post: function(path, params, callback, properties_name) {
+		for(var key in this.params)params[key] = this.params[key];
+		var data = querystring.stringify(params);
+		var options = {
+			host: 'sms.ru',
+			port: 80,
+			path: '/'+path,
+			method: 'POST'
+		};
+		var req = http.request(options, function(res) {
+			var result = '';
+			res.on('data', function (chunk) {
+				console.log("body: " + chunk);
+				result+=chunk;
+			});
+			res.on('end', function(){if(result){
+				result = result.replace(/\n+$/,'').split('\n');
+				var response = {};
+				response['code'] = result[0];
+				response['description'] = response_code[path.split('/')[1]][result[0]];
+				result.shift();
+
+				if(typeof properties_name === 'string')response[properties_name] = [];
+				result.forEach(function(id){
+					if (!~id.search(/=/)){
+						typeof properties_name === 'string'? response[properties_name].push(id): response[properties_name.shift()] = id;
+					}else{
+						var result = id.split('=');
+						response[result[0]] = result[1];
+					}
+				})
+				callback(response);
+			}});
+		}).on('error', function(e) {
+			console.log("Error: " + e.message);
+		});
+
+		req.write(data);
+		req.end();
+	}
 }
 
 
